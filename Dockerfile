@@ -1,11 +1,29 @@
-FROM ubuntu:14.04.2
+FROM buildpack-deps
+MAINTAINER Peter Martini <PeterCMartini@GMail.com>
 
-MAINTAINER support@shiyanlou.com
+RUN apt-get update \
+    && apt-get install -y curl procps \
+    && rm -fr /var/lib/apt/lists/*
 
-RUN useradd -m trylab
+RUN mkdir /usr/src/perl
+COPY *.patch /usr/src/perl/
+WORKDIR /usr/src/perl
 
-USER trylab
+RUN curl -SL https://cpan.metacpan.org/authors/id/S/SH/SHAY/perl-5.24.1.tar.bz2 -o perl-5.24.1.tar.bz2 \
+    && echo '482ac5dca262b57d26c381382a3e057b22ede631fcce32523c004b8bf773f6f0 *perl-5.24.1.tar.bz2' | sha256sum -c - \
+    && tar --strip-components=1 -xjf perl-5.24.1.tar.bz2 -C /usr/src/perl \
+    && rm perl-5.24.1.tar.bz2 \
+    && cat *.patch | patch -p1 \
+    && ./Configure -Duse64bitall -Duseshrplib  -des \
+    && make -j$(nproc) \
+    && TEST_JOBS=$(nproc) make test_harness \
+    && make install \
+    && cd /usr/src \
+    && curl -LO https://raw.githubusercontent.com/miyagawa/cpanminus/master/cpanm \
+    && chmod +x cpanm \
+    && ./cpanm App::cpanminus \
+    && rm -fr ./cpanm /root/.cpanm /usr/src/perl /tmp/*
 
-WORKDIR /home/trylab
+WORKDIR /root
 
-CMD echo "shiyanlou trylab." | wc -
+CMD ["perl5.24.1","-de0"]
